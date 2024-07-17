@@ -2,6 +2,7 @@ package module
 
 import (
 	"encoding/json"
+	"log"
 
 	"github.com/omni-network/omni/lib/errors"
 	"github.com/omni-network/omni/lib/ethclient"
@@ -90,11 +91,15 @@ func (m AppModule) InitGenesis(ctx sdk.Context, cdc codec.JSONCodec, raw json.Ra
 }
 
 func (AppModule) ExportGenesis(sdk.Context, codec.JSONCodec) json.RawMessage {
+	log.Println("!!!WARN!!! You must set evmengine.execution_block_hash in genesis file correctly.")
 	return nil
 }
 
-func (AppModuleBasic) DefaultGenesis(codec.JSONCodec) json.RawMessage {
-	panic("not supported")
+func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
+	log.Println("!!!WARN!!! You must modify evmengine.execution_block_hash in genesis file correctly.")
+	return cdc.MustMarshalJSON(&types.GenesisState{
+		ExecutionBlockHash: common.Hash{}.Bytes(),
+	})
 }
 
 // ValidateGenesis performs genesis state validation for the bank module.
