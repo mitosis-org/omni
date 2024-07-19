@@ -9,7 +9,6 @@ import (
 	"github.com/omni-network/omni/halo/comet"
 	"github.com/omni-network/omni/lib/errors"
 	"github.com/omni-network/omni/lib/ethclient"
-	"github.com/omni-network/omni/lib/k1util"
 	"github.com/omni-network/omni/octane/evmengine/types"
 
 	"github.com/ethereum/go-ethereum/beacon/engine"
@@ -187,12 +186,8 @@ func (k *Keeper) isNextProposer(ctx context.Context, currentProposer []byte, cur
 
 	nextIdx := int(idx+1) % len(valset.Validators)
 	nextProposer := valset.Validators[nextIdx]
-	nextAddr, err := k1util.PubKeyToAddress(nextProposer.PubKey)
-	if err != nil {
-		return false, err
-	}
 
-	isNextProposer := nextAddr == k.addrProvider.LocalAddress()
+	isNextProposer := nextProposer.PubKey.Equals(k.addrProvider.PubKey())
 
 	return isNextProposer, nil
 }

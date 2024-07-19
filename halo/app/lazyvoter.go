@@ -46,9 +46,11 @@ type voterLoader struct {
 	lastValSet *vtypes.ValidatorSetResponse
 	isVal      bool
 	localAddr  common.Address
+	pubKey     crypto.PubKey
 }
 
 func newVoterLoader(privKey crypto.PrivKey) (*voterLoader, error) {
+	pubKey := privKey.PubKey()
 	localAddr, err := k1util.PubKeyToAddress(privKey.PubKey())
 	if err != nil {
 		return nil, err
@@ -56,6 +58,7 @@ func newVoterLoader(privKey crypto.PrivKey) (*voterLoader, error) {
 
 	return &voterLoader{
 		localAddr: localAddr,
+		pubKey:    pubKey,
 	}, nil
 }
 
