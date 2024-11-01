@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/jinzhu/copier"
 )
 
 const (
@@ -81,8 +82,15 @@ func (c engineClient) NewPayloadV2(ctx context.Context, params engine.Executable
 	const endpoint = "new_payload_v2"
 	defer latency(c.chain, endpoint)()
 
+	// NOTE: We should use this struct for the compatibility with reth.
+	// If not, "Invalid params" error will be returned from reth.
+	executionPayload := ExecutionPayloadV2{}
+	if err := copier.Copy(&executionPayload, &params); err != nil {
+		return engine.PayloadStatusV1{}, err
+	}
+
 	var resp engine.PayloadStatusV1
-	err := c.cl.Client().CallContext(ctx, &resp, newPayloadV2, params)
+	err := c.cl.Client().CallContext(ctx, &resp, newPayloadV2, executionPayload)
 	if err != nil {
 		incError(c.chain, endpoint)
 		return engine.PayloadStatusV1{}, errors.Wrap(err, "rpc new payload v2")
@@ -97,8 +105,15 @@ func (c engineClient) NewPayloadV3(ctx context.Context, params engine.Executable
 	const endpoint = "new_payload_v3"
 	defer latency(c.chain, endpoint)()
 
+	// NOTE: We should use this struct for the compatibility with reth.
+	// If not, "Invalid params" error will be returned from reth.
+	executionPayload := ExecutionPayloadV3{}
+	if err := copier.Copy(&executionPayload, &params); err != nil {
+		return engine.PayloadStatusV1{}, err
+	}
+
 	var resp engine.PayloadStatusV1
-	err := c.cl.Client().CallContext(ctx, &resp, newPayloadV3, params, versionedHashes, beaconRoot)
+	err := c.cl.Client().CallContext(ctx, &resp, newPayloadV3, executionPayload, versionedHashes, beaconRoot)
 	if err != nil {
 		incError(c.chain, endpoint)
 		return engine.PayloadStatusV1{}, errors.Wrap(err, "rpc new payload v3")
