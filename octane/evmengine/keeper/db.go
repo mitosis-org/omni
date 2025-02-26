@@ -147,7 +147,8 @@ func (k *Keeper) EligibleWithdrawals(ctx context.Context) ([]*etypes.Withdrawal,
 		}
 	}
 
-	var evmWithdrawals []*etypes.Withdrawal
+	// NOTE: It must be not nil, otherwise it will be missing when serialized.
+	evmWithdrawals := make([]*etypes.Withdrawal, 0, len(withdrawals))
 	for _, w := range withdrawals {
 		evmWithdrawals = append(evmWithdrawals, &etypes.Withdrawal{
 			Index:   w.GetId(),
