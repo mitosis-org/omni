@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/jinzhu/copier"
 )
 
 const (
@@ -84,9 +86,16 @@ func (c engineClient) NewPayloadV3(ctx context.Context, params engine.Executable
 		}[status.Status]
 	}
 
+	// NOTE: We should use this struct for compatibility with reth.
+	// Otherwise, "Invalid params" error will be returned from reth.
+	executionPayload := ExecutionPayloadV3{}
+	if err := copier.Copy(&executionPayload, &params); err != nil {
+		return engine.PayloadStatusV1{}, err
+	}
+
 	var resp engine.PayloadStatusV1
 	var rpcErr rpc.Error
-	err := c.cl.Client().CallContext(ctx, &resp, newPayloadV3, params, versionedHashes, beaconRoot)
+	err := c.cl.Client().CallContext(ctx, &resp, newPayloadV3, executionPayload, versionedHashes, beaconRoot)
 	if isStatusOk(resp) {
 		// Swallow errors when geth returns errors along with proper responses (but at least log it).
 		if err != nil {
