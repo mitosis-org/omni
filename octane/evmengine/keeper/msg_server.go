@@ -139,24 +139,11 @@ func (s msgServer) deliverEvents(ctx context.Context, height uint64, blockHash c
 			return errors.New("unknown log address [BUG]", log.Hex7("address", event.Address))
 		}
 
-		// Branch the store in case processing fails.
-		sdkCtx := sdk.UnwrapSDKContext(ctx)
-		branchMS := sdkCtx.MultiStore().CacheMultiStore()
-		branchCtx := sdkCtx.WithMultiStore(branchMS)
-
-		// Deliver the event inside the catch function that converts panics into errors; similar to CosmosSDK BaseApp.runTx
-		if err := catch(func() error { //nolint:contextcheck // False positive wrt ctx
-			return proc.Deliver(branchCtx, blockHash, event)
-		}); err != nil {
-			log.Warn(ctx, "Delivering EVM log event failed", err,
-				"name", proc.Name(),
-				"height", height,
-			)
-
-			continue // Don't write state on error (or panics).
+		// Deliver the event.
+		// NOTE: Allow event processors to control their error/panic handling behavior
+		if err = proc.Deliver(ctx, blockHash, event); err != nil {
+			return errors.Wrap(err, "deliver log [BUG]")
 		}
-
-		branchMS.Write()
 	}
 
 	if len(events) > 0 {
