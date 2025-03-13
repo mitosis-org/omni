@@ -19,7 +19,6 @@ import (
 	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
-	staking "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 )
 
@@ -172,7 +171,6 @@ type ModuleOutputs struct {
 
 	EngEVMKeeper *keeper.Keeper
 	Module       appmodule.AppModule
-	Hooks        staking.StakingHooksWrapper
 }
 
 func ProvideModule(in ModuleInputs) (ModuleOutputs, error) {
@@ -204,6 +202,5 @@ func ProvideModule(in ModuleInputs) (ModuleOutputs, error) {
 	return ModuleOutputs{
 		EngEVMKeeper: k,
 		Module:       m,
-		Hooks:        staking.StakingHooksWrapper{StakingHooks: keeper.Hooks{}},
 	}, nil
 }
