@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/jinzhu/copier"
@@ -19,14 +20,11 @@ import (
 const (
 	defaultRPCHTTPTimeout = time.Second * 30
 
-	newPayloadV2 = "engine_newPayloadV2"
-	newPayloadV3 = "engine_newPayloadV3"
+	newPayloadV4 = "engine_newPayloadV4"
 
-	forkchoiceUpdatedV2 = "engine_forkchoiceUpdatedV2"
 	forkchoiceUpdatedV3 = "engine_forkchoiceUpdatedV3"
 
-	getPayloadV2 = "engine_getPayloadV2"
-	getPayloadV3 = "engine_getPayloadV3"
+	getPayloadV4 = "engine_getPayloadV4"
 )
 
 // EngineClient defines the Engine API authenticated JSON-RPC endpoints.
@@ -34,16 +32,19 @@ const (
 type EngineClient interface {
 	Client
 
-	// NewPayloadV3 creates an Eth1 block, inserts it in the chain, and returns the status of the chain.
-	NewPayloadV3(ctx context.Context, params engine.ExecutableData, versionedHashes []common.Hash,
-		beaconRoot *common.Hash) (engine.PayloadStatusV1, error)
+	// NewPayloadV4 creates an Eth1 block, inserts it in the chain, and returns the status of the chain.
+	// https://github.com/ethereum/execution-apis/blob/main/src/engine/prague.md#engine_newpayloadv4
+	NewPayloadV4(ctx context.Context, params engine.ExecutableData, versionedHashes []common.Hash,
+		beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (engine.PayloadStatusV1, error)
 
 	// ForkchoiceUpdatedV3 is equivalent to V2 with the addition of parent beacon block root in the payload attributes.
+	// https://github.com/ethereum/execution-apis/blob/main/src/engine/cancun.md#engine_forkchoiceupdatedv3
 	ForkchoiceUpdatedV3(ctx context.Context, update engine.ForkchoiceStateV1,
 		payloadAttributes *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 
-	// GetPayloadV3 returns a cached payload by id.
-	GetPayloadV3(ctx context.Context, payloadID engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
+	// GetPayloadV4 returns a cached payload by id.
+	// https://github.com/ethereum/execution-apis/blob/main/src/engine/prague.md#engine_getpayloadv4
+	GetPayloadV4(ctx context.Context, payloadID engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 }
 
 // engineClient implements EngineClient using JSON-RPC.
@@ -70,10 +71,10 @@ func NewAuthClient(ctx context.Context, urlAddr string, jwtSecret []byte) (Engin
 	}, nil
 }
 
-func (c engineClient) NewPayloadV3(ctx context.Context, params engine.ExecutableData, versionedHashes []common.Hash,
-	beaconRoot *common.Hash,
+func (c engineClient) NewPayloadV4(ctx context.Context, params engine.ExecutableData, versionedHashes []common.Hash,
+	beaconRoot *common.Hash, executionRequests []hexutil.Bytes,
 ) (engine.PayloadStatusV1, error) {
-	const endpoint = "new_payload_v3"
+	const endpoint = "new_payload_v4"
 	defer latency(c.chain, endpoint)()
 
 	// isStatusOk returns true if the response status is valid.
@@ -95,11 +96,11 @@ func (c engineClient) NewPayloadV3(ctx context.Context, params engine.Executable
 
 	var resp engine.PayloadStatusV1
 	var rpcErr rpc.Error
-	err := c.cl.Client().CallContext(ctx, &resp, newPayloadV3, executionPayload, versionedHashes, beaconRoot)
+	err := c.cl.Client().CallContext(ctx, &resp, newPayloadV4, executionPayload, versionedHashes, beaconRoot, executionRequests)
 	if isStatusOk(resp) {
 		// Swallow errors when geth returns errors along with proper responses (but at least log it).
 		if err != nil {
-			log.Warn(ctx, "Ignoring new_payload_v3 error with proper response", err, "status", resp.Status)
+			log.Warn(ctx, "Ignoring new_payload_v4 error with proper response", err, "status", resp.Status)
 		}
 
 		return resp, nil
@@ -107,7 +108,7 @@ func (c engineClient) NewPayloadV3(ctx context.Context, params engine.Executable
 		// Swallow geth RPC errors, treat them as application errors, ie, invalid payload.
 		// Geth server mostly returns status invalid with RPC errors, but the geth client doesn't
 		// return errors AND status, it only returns errors OR status.
-		log.Warn(ctx, "Converting new_payload_v3 engine rpc.Error to invalid response", err, "code", rpcErr.ErrorCode())
+		log.Warn(ctx, "Converting new_payload_v4 engine rpc.Error to invalid response", err, "code", rpcErr.ErrorCode())
 		valErr := err.Error()
 		if data := errData(err); data != "" {
 			valErr = data
@@ -162,17 +163,17 @@ func (c engineClient) ForkchoiceUpdatedV3(ctx context.Context, update engine.For
 	return engine.ForkChoiceResponse{}, errors.New("nil error and unknown status", "status", resp.PayloadStatus.Status)
 }
 
-func (c engineClient) GetPayloadV3(ctx context.Context, payloadID engine.PayloadID) (
+func (c engineClient) GetPayloadV4(ctx context.Context, payloadID engine.PayloadID) (
 	*engine.ExecutionPayloadEnvelope, error,
 ) {
-	const endpoint = "get_payload_v3"
+	const endpoint = "get_payload_v4"
 	defer latency(c.chain, endpoint)()
 
 	var resp engine.ExecutionPayloadEnvelope
-	err := c.cl.Client().CallContext(ctx, &resp, getPayloadV3, payloadID)
+	err := c.cl.Client().CallContext(ctx, &resp, getPayloadV4, payloadID)
 	if err != nil {
 		incError(c.chain, endpoint)
-		return nil, errors.Wrap(err, "rpc get payload v3")
+		return nil, errors.Wrap(err, "rpc get payload v4")
 	}
 
 	return &resp, nil

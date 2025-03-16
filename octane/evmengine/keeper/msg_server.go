@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/omni-network/omni/lib/cast"
 	"github.com/omni-network/omni/lib/errors"
@@ -33,13 +34,13 @@ func (s msgServer) ExecutionPayload(ctx context.Context, msg *types.MsgExecution
 		return nil, err
 	}
 
-	blockHashes, err := blobHashes(msg.BlobCommitments)
+	blobHashes_, err := blobHashes(msg.BlobCommitments)
 	if err != nil {
 		return nil, errors.Wrap(err, "blob commitments")
 	}
 
 	err = retryForever(ctx, func(ctx context.Context) (bool, error) {
-		status, err := pushPayload(ctx, s.engineCl, payload, blockHashes)
+		status, err := pushPayload(ctx, s.engineCl, payload, blobHashes_)
 		if err != nil {
 			// We need to retry forever on networking errors, but can't easily identify them, so retry all errors.
 			log.Warn(ctx, "Processing finalized payload failed: push new payload to evm (will retry)", err)
@@ -164,8 +165,10 @@ func pushPayload(ctx context.Context, engineCl ethclient.EngineClient, payload e
 		return engine.PayloadStatusV1{}, errors.New("app hash is empty")
 	}
 
+	executionRequests := make([]hexutil.Bytes, 0)
+
 	// Push it back to the execution client (mark it as possible new head).
-	status, err := engineCl.NewPayloadV3(ctx, payload, blobHashes, &appHash)
+	status, err := engineCl.NewPayloadV4(ctx, payload, blobHashes, &appHash, executionRequests)
 	if err != nil {
 		return engine.PayloadStatusV1{}, errors.Wrap(err, "new payload")
 	}

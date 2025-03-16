@@ -3,6 +3,7 @@ package ethclient
 import (
 	"context"
 	"crypto/sha256"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"math/big"
 	"math/rand"
 	"sync"
@@ -422,7 +423,7 @@ func (m *engineMock) BlockByNumber(ctx context.Context, number *big.Int) (*types
 	return m.head, nil
 }
 
-func (m *engineMock) NewPayloadV3(ctx context.Context, params engine.ExecutableData, _ []common.Hash, beaconRoot *common.Hash) (engine.PayloadStatusV1, error) {
+func (m *engineMock) NewPayloadV4(ctx context.Context, params engine.ExecutableData, _ []common.Hash, beaconRoot *common.Hash, _ []hexutil.Bytes) (engine.PayloadStatusV1, error) {
 	if err := m.maybeErr(ctx); err != nil {
 		return engine.PayloadStatusV1{}, err
 	}
@@ -532,7 +533,7 @@ func (m *engineMock) ForkchoiceUpdatedV3(ctx context.Context, update engine.Fork
 	return resp, nil
 }
 
-func (m *engineMock) GetPayloadV3(ctx context.Context, payloadID engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error) {
+func (m *engineMock) GetPayloadV4(ctx context.Context, payloadID engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error) {
 	if err := m.maybeErr(ctx); err != nil {
 		return nil, err
 	}
@@ -548,20 +549,8 @@ func (m *engineMock) GetPayloadV3(ctx context.Context, payloadID engine.PayloadI
 	return &engine.ExecutionPayloadEnvelope{
 		ExecutionPayload: &args.params,
 		BlobsBundle:      &engine.BlobsBundleV1{}, // Empty blobs
+		Requests:         make([][]byte, 0),
 	}, nil
-}
-
-func (*engineMock) NewPayloadV2(context.Context, engine.ExecutableData) (engine.PayloadStatusV1, error) {
-	panic("implement me")
-}
-
-func (*engineMock) ForkchoiceUpdatedV2(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes,
-) (engine.ForkChoiceResponse, error) {
-	panic("implement me")
-}
-
-func (*engineMock) GetPayloadV2(context.Context, engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error) {
-	panic("implement me")
 }
 
 // makePayload returns a new fuzzed payload using head as parent if provided.

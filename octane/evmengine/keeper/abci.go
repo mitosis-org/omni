@@ -3,7 +3,7 @@ package keeper
 import (
 	"context"
 	"log/slog"
-	"math/rand/v2"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -102,7 +102,7 @@ func (k *Keeper) PrepareProposal(ctx sdk.Context, req *abci.RequestPreparePropos
 	var payloadResp *engine.ExecutionPayloadEnvelope
 	err = retryForever(ctx, func(ctx context.Context) (bool, error) {
 		var err error
-		payloadResp, err = k.engineCl.GetPayloadV3(ctx, payloadID)
+		payloadResp, err = k.engineCl.GetPayloadV4(ctx, payloadID)
 		if isUnknownPayload(err) {
 			return false, err // Abort, don't retry
 		} else if err != nil {
@@ -170,7 +170,7 @@ func maybeFuzzPayload(ctx sdk.Context, resp *engine.ExecutionPayloadEnvelope) *e
 		return resp
 	}
 
-	switch rand.IntN(5) { //nolint:gosec // Weak RNG is fine for fuzz testing.
+	switch rand.Intn(5) { //nolint:gosec // Weak RNG is fine for fuzz testing.
 	case 0:
 		log.Warn(ctx, "Fuzzing proposed octane payload: invalid parent hash", nil)
 		resp.ExecutionPayload.BlockHash = resp.ExecutionPayload.ParentHash
