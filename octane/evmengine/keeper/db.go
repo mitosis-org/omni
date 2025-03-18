@@ -119,7 +119,6 @@ func (k *Keeper) listWithdrawalsByAddress(ctx context.Context, withdrawalAddr co
 // EligibleWithdrawals returns all withdrawals created below the specified height,
 // sorted by the id (oldest to newest), limited by the provided count.
 func (k *Keeper) EligibleWithdrawals(ctx context.Context) ([]*etypes.Withdrawal, error) {
-	height := sdk.UnwrapSDKContext(ctx).BlockHeight()
 	// Note: items are ordered by the id in ascending order (oldest to newest).
 	iter, err := k.withdrawalTable.List(ctx, WithdrawalPrimaryKey{})
 	if err != nil {
@@ -132,11 +131,6 @@ func (k *Keeper) EligibleWithdrawals(ctx context.Context) ([]*etypes.Withdrawal,
 		val, err := iter.Value()
 		if err != nil {
 			return nil, errors.Wrap(err, "get withdrawal")
-		}
-
-		if val.GetCreatedHeight() >= uint64(height) {
-			// Withdrawals created in this block are not eligible
-			break
 		}
 
 		withdrawals = append(withdrawals, val)
