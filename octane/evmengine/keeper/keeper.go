@@ -13,7 +13,6 @@ import (
 	"github.com/omni-network/omni/octane/evmengine/types"
 
 	"github.com/ethereum/go-ethereum/beacon/engine"
-	"github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 
 	ormv1alpha1 "cosmossdk.io/api/cosmos/orm/v1alpha1"
@@ -94,20 +93,10 @@ func NewKeeper(
 	}, nil
 }
 
-// verifyProcs ensures that all event processors have distinct names and addresses.
-// If it's not the case an error is returned.
-// This is needed to prevent duplicate event processing on name or address conflicts.
+// verifyProcs ensures that all event processors have distinct names.
 func verifyProcs(eventProcs []types.EvmEventProcessor) error {
 	names := make(map[string]bool)
-	addresses := make(map[common.Address]bool)
 	for _, proc := range eventProcs {
-		addrs, _ := proc.FilterParams()
-		for _, address := range addrs {
-			if addresses[address] {
-				return errors.New("duplicate event processors", "address", address)
-			}
-			addresses[address] = true
-		}
 		name := proc.Name()
 		if names[name] {
 			return errors.New("duplicate event processors", "name", name)

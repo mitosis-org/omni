@@ -68,6 +68,6 @@ type testProc struct {
 	Address common.Address
 }
 
-func (p testProc) FilterParams() ([]common.Address, [][]common.Hash) {
+func (p testProc) FilterParams(_ context.Context) ([]common.Address, [][]common.Hash) {
 	return []common.Address{p.Address}, nil
 }

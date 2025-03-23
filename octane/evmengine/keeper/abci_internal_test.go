@@ -569,7 +569,7 @@ func (mockEventProc) Name() string {
 	return "mock"
 }
 
-func (mockEventProc) FilterParams() ([]common.Address, [][]common.Hash) {
+func (mockEventProc) FilterParams(_ context.Context) ([]common.Address, [][]common.Hash) {
 	return []common.Address{zeroAddr}, [][]common.Hash{{zeroHash}}
 }
 

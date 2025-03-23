@@ -119,7 +119,7 @@ func (s msgServer) ExecutionPayload(ctx context.Context, msg *types.MsgExecution
 func (s msgServer) deliverEvents(ctx context.Context, height uint64, blockHash common.Hash, events []types.EVMEvent) error {
 	procs := make(map[common.Address]types.EvmEventProcessor)
 	for _, proc := range s.eventProcs {
-		addrs, _ := proc.FilterParams()
+		addrs, _ := proc.FilterParams(ctx)
 		for _, addr := range addrs {
 			procs[addr] = proc
 		}

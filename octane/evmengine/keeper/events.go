@@ -61,7 +61,7 @@ func fetchProcEvents(ctx context.Context, cl ethclient.EngineClient, blockHash c
 	for _, proc := range procs {
 		// Fetching evm events over the network is unreliable, retry forever.
 		err := retryForever(ctx, func(ctx context.Context) (bool, error) {
-			addresses, topics := proc.FilterParams()
+			addresses, topics := proc.FilterParams(ctx)
 			logs, err := cl.FilterLogs(ctx, ethereum.FilterQuery{
 				BlockHash: &blockHash,
 				Addresses: addresses,
