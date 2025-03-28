@@ -15,7 +15,8 @@ import (
 
 //nolint:gochecknoglobals // Global logger is our approach.
 var (
-	global   = newConsoleLogger()
+	//global   = newConsoleLogger()
+	global   *slog.Logger
 	globalMu = new(sync.RWMutex)
 )
 
