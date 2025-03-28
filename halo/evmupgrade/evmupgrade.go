@@ -61,7 +61,7 @@ func (EventProcessor) Name() string {
 }
 
 // FilterParams defines the matching EVM log events, see github.com/ethereum/go-ethereum#FilterQuery.
-func (p EventProcessor) FilterParams() ([]common.Address, [][]common.Hash) {
+func (p EventProcessor) FilterParams(_ context.Context) ([]common.Address, [][]common.Hash) {
 	return []common.Address{p.address}, [][]common.Hash{{planUpgradeEvent.ID, cancelUpgradeEvent.ID}}
 }
 

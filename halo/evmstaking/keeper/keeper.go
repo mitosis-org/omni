@@ -146,7 +146,7 @@ func (Keeper) Name() string {
 }
 
 // FilterParams defines the matching EVM log events, see github.com/ethereum/go-ethereum#FilterQuery.
-func (k Keeper) FilterParams() ([]common.Address, [][]common.Hash) {
+func (k Keeper) FilterParams(_ context.Context) ([]common.Address, [][]common.Hash) {
 	return []common.Address{k.address}, [][]common.Hash{{createValidatorEvent.ID, delegateEvent.ID, editValidatorEvent.ID}}
 }
 

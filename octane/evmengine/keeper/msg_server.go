@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/omni-network/omni/lib/cast"
 	"github.com/omni-network/omni/lib/errors"
@@ -33,13 +34,13 @@ func (s msgServer) ExecutionPayload(ctx context.Context, msg *types.MsgExecution
 		return nil, err
 	}
 
-	blockHashes, err := blobHashes(msg.BlobCommitments)
+	blobHashes_, err := blobHashes(msg.BlobCommitments)
 	if err != nil {
 		return nil, errors.Wrap(err, "blob commitments")
 	}
 
 	err = retryForever(ctx, func(ctx context.Context) (bool, error) {
-		status, err := pushPayload(ctx, s.engineCl, payload, blockHashes)
+		status, err := pushPayload(ctx, s.engineCl, payload, blobHashes_)
 		if err != nil {
 			// We need to retry forever on networking errors, but can't easily identify them, so retry all errors.
 			log.Warn(ctx, "Processing finalized payload failed: push new payload to evm (will retry)", err)
@@ -106,6 +107,10 @@ func (s msgServer) ExecutionPayload(ctx context.Context, msg *types.MsgExecution
 		return nil, errors.Wrap(err, "update execution head")
 	}
 
+	if err := s.RemoveWithdrawals(ctx, payload.Withdrawals); err != nil {
+		return nil, errors.Wrap(err, "remove withdrawals")
+	}
+
 	return &types.ExecutionPayloadResponse{}, nil
 }
 
@@ -114,7 +119,7 @@ func (s msgServer) ExecutionPayload(ctx context.Context, msg *types.MsgExecution
 func (s msgServer) deliverEvents(ctx context.Context, height uint64, blockHash common.Hash, events []types.EVMEvent) error {
 	procs := make(map[common.Address]types.EvmEventProcessor)
 	for _, proc := range s.eventProcs {
-		addrs, _ := proc.FilterParams()
+		addrs, _ := proc.FilterParams(ctx)
 		for _, addr := range addrs {
 			procs[addr] = proc
 		}
@@ -135,24 +140,11 @@ func (s msgServer) deliverEvents(ctx context.Context, height uint64, blockHash c
 			return errors.New("unknown log address [BUG]", log.Hex7("address", event.Address))
 		}
 
-		// Branch the store in case processing fails.
-		sdkCtx := sdk.UnwrapSDKContext(ctx)
-		branchMS := sdkCtx.MultiStore().CacheMultiStore()
-		branchCtx := sdkCtx.WithMultiStore(branchMS)
-
-		// Deliver the event inside the catch function that converts panics into errors; similar to CosmosSDK BaseApp.runTx
-		if err := catch(func() error { //nolint:contextcheck // False positive wrt ctx
-			return proc.Deliver(branchCtx, blockHash, event)
-		}); err != nil {
-			log.Warn(ctx, "Delivering EVM log event failed", err,
-				"name", proc.Name(),
-				"height", height,
-			)
-
-			continue // Don't write state on error (or panics).
+		// Deliver the event.
+		// NOTE: Allow event processors to control their error/panic handling behavior
+		if err = proc.Deliver(ctx, blockHash, event); err != nil {
+			return errors.Wrap(err, "deliver log [BUG]")
 		}
-
-		branchMS.Write()
 	}
 
 	if len(events) > 0 {
@@ -173,8 +165,10 @@ func pushPayload(ctx context.Context, engineCl ethclient.EngineClient, payload e
 		return engine.PayloadStatusV1{}, errors.New("app hash is empty")
 	}
 
+	executionRequests := make([]hexutil.Bytes, 0)
+
 	// Push it back to the execution client (mark it as possible new head).
-	status, err := engineCl.NewPayloadV3(ctx, payload, blobHashes, &appHash)
+	status, err := engineCl.NewPayloadV4(ctx, payload, blobHashes, &appHash, executionRequests)
 	if err != nil {
 		return engine.PayloadStatusV1{}, errors.Wrap(err, "new payload")
 	}

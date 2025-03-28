@@ -4,6 +4,7 @@ package log
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"runtime"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	pkgerrors "github.com/pkg/errors"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 type attrsKey struct{}
@@ -91,6 +94,12 @@ func log(ctx context.Context, level slog.Level, msg string, attrs ...any) {
 
 	logger := getLogger(ctx)
 
+	// If no logger is set, use the Cosmos SDK logger.
+	if logger == nil {
+		logWithSDK(ctx, level, msg, attrs...)
+		return
+	}
+
 	if !logger.Enabled(ctx, level) {
 		return
 	}
@@ -119,6 +128,35 @@ func log(ctx context.Context, level slog.Level, msg string, attrs ...any) {
 	)
 
 	_ = logger.Handler().Handle(ctx, r)
+}
+
+// logWithSDK logs the message and attributes using the Cosmos SDK logger.
+func logWithSDK(ctx context.Context, level slog.Level, msg string, attrs ...any) {
+	// NOTE: Mitosis only uses x/evmengine module and related libs. So, we can assume the module name is always x/evmengine.
+	logger := sdk.UnwrapSDKContext(ctx).Logger().With("module", "x/evmengine")
+
+	var keyVals []any
+	for _, attr := range attrs {
+		switch x := attr.(type) {
+		case slog.Attr:
+			keyVals = append(keyVals, x.Key, x.Value.String())
+		default:
+			keyVals = append(keyVals, x)
+		}
+	}
+
+	switch level {
+	case slog.LevelDebug:
+		logger.Debug(msg, keyVals...)
+	case slog.LevelInfo:
+		logger.Info(msg, keyVals...)
+	case slog.LevelWarn:
+		logger.Warn(msg, keyVals...)
+	case slog.LevelError:
+		logger.Error(msg, keyVals...)
+	default:
+		logger.Info(fmt.Sprintf("Unexpected log level (%d): %s", level, msg), keyVals...)
+	}
 }
 
 // errFields is similar to z.Err and returns the structured error fields and
