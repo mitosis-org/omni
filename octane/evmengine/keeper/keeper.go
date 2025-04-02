@@ -156,7 +156,7 @@ func (k *Keeper) parseAndVerifyProposedPayload(ctx context.Context, msg *types.M
 		return engine.ExecutableData{}, errors.Wrap(err, "unmarshal payload")
 	}
 
-	eligibleWithdrawals, err := k.EligibleWithdrawals(ctx)
+	eligibleWithdrawals, err := k.EligibleWithdrawals(ctx, false)
 	if err != nil {
 		return engine.ExecutableData{}, errors.Wrap(err, "eligible withdrawals")
 	}

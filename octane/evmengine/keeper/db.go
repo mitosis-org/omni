@@ -118,7 +118,12 @@ func (k *Keeper) listWithdrawalsByAddress(ctx context.Context, withdrawalAddr co
 
 // EligibleWithdrawals returns all withdrawals created below the specified height,
 // sorted by the id (oldest to newest), limited by the provided count.
-func (k *Keeper) EligibleWithdrawals(ctx context.Context) ([]*etypes.Withdrawal, error) {
+func (k *Keeper) EligibleWithdrawals(ctx context.Context, forOptimisticBuild bool) ([]*etypes.Withdrawal, error) {
+	height, err := umath.ToUint64(sdk.UnwrapSDKContext(ctx).BlockHeight())
+	if err != nil {
+		return nil, err
+	}
+
 	// Note: items are ordered by the id in ascending order (oldest to newest).
 	iter, err := k.withdrawalTable.List(ctx, WithdrawalPrimaryKey{})
 	if err != nil {
@@ -131,6 +136,14 @@ func (k *Keeper) EligibleWithdrawals(ctx context.Context) ([]*etypes.Withdrawal,
 		val, err := iter.Value()
 		if err != nil {
 			return nil, errors.Wrap(err, "get withdrawal")
+		}
+
+		// There are two corner cases we should consider:
+		// - If begin blocker adds a withdrawal, it is not applied yet when creating the evm payload.
+		// - Same withdrawals should be used for both the optimistic build and when not using it.
+		// So, we should exclude the withdrawals created at the current height if it is not for the optimistic build.
+		if !forOptimisticBuild && val.GetCreatedHeight() >= height {
+			break
 		}
 
 		withdrawals = append(withdrawals, val)
