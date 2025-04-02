@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
+	etypes "github.com/ethereum/go-ethereum/core/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
@@ -46,8 +47,8 @@ func (k *Keeper) InsertGenesisHead(ctx context.Context, executionBlockHash []byt
 	return nil
 }
 
-// getExecutionHead returns the current execution head.
-func (k *Keeper) getExecutionHead(ctx context.Context) (*ExecutionHead, error) {
+// GetExecutionHead returns the current execution head.
+func (k *Keeper) GetExecutionHead(ctx context.Context) (*ExecutionHead, error) {
 	head, err := k.headTable.Get(ctx, executionHeadID)
 	if err != nil {
 		return nil, errors.Wrap(err, "update execution head")
@@ -117,8 +118,12 @@ func (k *Keeper) listWithdrawalsByAddress(ctx context.Context, withdrawalAddr co
 
 // EligibleWithdrawals returns all withdrawals created below the specified height,
 // sorted by the id (oldest to newest), limited by the provided count.
-func (k *Keeper) EligibleWithdrawals(ctx context.Context) ([]*Withdrawal, error) {
-	height := sdk.UnwrapSDKContext(ctx).BlockHeight()
+func (k *Keeper) EligibleWithdrawals(ctx context.Context, forOptimisticBuild bool) ([]*etypes.Withdrawal, error) {
+	height, err := umath.ToUint64(sdk.UnwrapSDKContext(ctx).BlockHeight())
+	if err != nil {
+		return nil, err
+	}
+
 	// Note: items are ordered by the id in ascending order (oldest to newest).
 	iter, err := k.withdrawalTable.List(ctx, WithdrawalPrimaryKey{})
 	if err != nil {
@@ -133,8 +138,11 @@ func (k *Keeper) EligibleWithdrawals(ctx context.Context) ([]*Withdrawal, error)
 			return nil, errors.Wrap(err, "get withdrawal")
 		}
 
-		if val.GetCreatedHeight() >= uint64(height) {
-			// Withdrawals created in this block are not eligible
+		// There are two corner cases we should consider:
+		// - If begin blocker adds a withdrawal, it is not applied yet when creating the evm payload.
+		// - Same withdrawals should be used for both the optimistic build and when not using it.
+		// So, we should exclude the withdrawals created at the current height if it is not for the optimistic build.
+		if !forOptimisticBuild && val.GetCreatedHeight() >= height {
 			break
 		}
 
@@ -146,5 +154,29 @@ func (k *Keeper) EligibleWithdrawals(ctx context.Context) ([]*Withdrawal, error)
 		}
 	}
 
-	return withdrawals, nil
+	// NOTE: It must be not nil, otherwise it will be missing when serialized.
+	evmWithdrawals := make([]*etypes.Withdrawal, 0, len(withdrawals))
+	for _, w := range withdrawals {
+		evmWithdrawals = append(evmWithdrawals, &etypes.Withdrawal{
+			Index:   w.GetId(),
+			Address: common.BytesToAddress(w.GetAddress()), //nolint:forbidigo // should be padded
+			Amount:  w.GetAmountGwei(),
+			// The validator index is not used for withdrawals.
+			Validator: 0,
+		})
+	}
+
+	return evmWithdrawals, nil
+}
+
+// RemoveWithdrawals removes all passed withdrawals by the id.
+func (k *Keeper) RemoveWithdrawals(ctx context.Context, withdrawals []*etypes.Withdrawal) error {
+	for _, w := range withdrawals {
+		err := k.withdrawalTable.DeleteBy(ctx, WithdrawalIdIndexKey{}.WithId(w.Index))
+		if err != nil {
+			return errors.Wrap(err, "remowing withdrawal", "id", w.Index)
+		}
+	}
+
+	return nil
 }

@@ -228,7 +228,7 @@ func TestKeeper_PrepareProposal(t *testing.T) {
 		populateGenesisHead(ctx, t, keeper)
 
 		// Get the parent block we will build on top of
-		head, err := keeper.getExecutionHead(ctx)
+		head, err := keeper.GetExecutionHead(ctx)
 		require.NoError(t, err)
 		headHash, err := head.Hash()
 		require.NoError(t, err)
@@ -299,7 +299,7 @@ func TestKeeper_PrepareProposal(t *testing.T) {
 		populateGenesisHead(ctx, t, keeper)
 
 		// Get the parent block we will build on top of
-		head, err := keeper.getExecutionHead(ctx)
+		head, err := keeper.GetExecutionHead(ctx)
 		require.NoError(t, err)
 		headHash, err := head.Hash()
 		require.NoError(t, err)
@@ -356,7 +356,7 @@ func TestKeeper_PrepareProposal(t *testing.T) {
 		populateGenesisHead(ctx, t, keeper)
 
 		// Get the parent block we will build on top of
-		head, err := keeper.getExecutionHead(ctx)
+		head, err := keeper.GetExecutionHead(ctx)
 		require.NoError(t, err)
 		headHash, err := head.Hash()
 		require.NoError(t, err)
@@ -569,7 +569,7 @@ func (mockEventProc) Name() string {
 	return "mock"
 }
 
-func (mockEventProc) FilterParams() ([]common.Address, [][]common.Hash) {
+func (mockEventProc) FilterParams(_ context.Context) ([]common.Address, [][]common.Hash) {
 	return []common.Address{zeroAddr}, [][]common.Hash{{zeroHash}}
 }
 

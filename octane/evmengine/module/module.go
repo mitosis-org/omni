@@ -2,6 +2,7 @@ package module
 
 import (
 	"encoding/json"
+	"log"
 
 	"github.com/omni-network/omni/lib/errors"
 	"github.com/omni-network/omni/lib/ethclient"
@@ -18,7 +19,6 @@ import (
 	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
-	staking "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 )
 
@@ -95,12 +95,24 @@ func (m AppModule) InitGenesis(ctx sdk.Context, cdc codec.JSONCodec, raw json.Ra
 	}
 }
 
-func (AppModule) ExportGenesis(sdk.Context, codec.JSONCodec) json.RawMessage {
-	return nil
+func (m AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.RawMessage {
+	log.Println("!!!WARN!!! You must modify evmengine.execution_block_hash in genesis file correctly.")
+
+	head, err := m.keeper.GetExecutionHead(ctx)
+	if err != nil {
+		panic(err)
+	}
+	genState := types.GenesisState{
+		ExecutionBlockHash: head.BlockHash,
+	}
+	return cdc.MustMarshalJSON(&genState)
 }
 
-func (AppModuleBasic) DefaultGenesis(codec.JSONCodec) json.RawMessage {
-	panic("not supported")
+func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
+	log.Println("!!!WARN!!! You must modify evmengine.execution_block_hash in genesis file correctly.")
+	return cdc.MustMarshalJSON(&types.GenesisState{
+		ExecutionBlockHash: common.Hash{}.Bytes(),
+	})
 }
 
 // ValidateGenesis performs genesis state validation for the bank module.
@@ -159,7 +171,6 @@ type ModuleOutputs struct {
 
 	EngEVMKeeper *keeper.Keeper
 	Module       appmodule.AppModule
-	Hooks        staking.StakingHooksWrapper
 }
 
 func ProvideModule(in ModuleInputs) (ModuleOutputs, error) {
@@ -191,6 +202,5 @@ func ProvideModule(in ModuleInputs) (ModuleOutputs, error) {
 	return ModuleOutputs{
 		EngEVMKeeper: k,
 		Module:       m,
-		Hooks:        staking.StakingHooksWrapper{StakingHooks: keeper.Hooks{}},
 	}, nil
 }

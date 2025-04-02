@@ -1,7 +1,6 @@
 package keeper
 
 import (
-	"context"
 	"testing"
 
 	"github.com/omni-network/omni/lib/errors"
@@ -11,6 +10,7 @@ import (
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 
 	"github.com/ethereum/go-ethereum/common"
+	etypes "github.com/ethereum/go-ethereum/core/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
@@ -66,15 +66,14 @@ func TestKeeper_withdrawalsPersistence(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	withdrawals, err := getAllWithdrawals(ctx, keeper)
+	withdrawals, err := keeper.EligibleWithdrawals(ctx.WithBlockHeight(1000), false)
 	require.NoError(t, err)
 	require.Len(t, withdrawals, len(inputs))
 
-	matchesTestCase := func(w *Withdrawal, in testCase) {
-		require.Equal(t, in.expID, w.GetId())
-		require.Equal(t, in.addr.Bytes(), w.GetAddress())
-		require.Equal(t, in.amount, w.GetAmountGwei())
-		require.Equal(t, in.height, w.GetCreatedHeight())
+	matchesTestCase := func(w *etypes.Withdrawal, in testCase) {
+		require.Equal(t, in.expID, w.Index)
+		require.Equal(t, common.BytesToAddress(in.addr.Bytes()), w.Address)
+		require.Equal(t, in.amount, w.Amount)
 	}
 
 	for i, in := range inputs {
@@ -96,29 +95,29 @@ func TestKeeper_withdrawalsPersistence(t *testing.T) {
 	require.Empty(t, withdrawalsByAddr)
 
 	// make sure we have no withdrawals below and at height 1
-	withdrawalsByHeight, err := keeper.EligibleWithdrawals(ctx.WithBlockHeight(0))
+	withdrawalsByHeight, err := keeper.EligibleWithdrawals(ctx.WithBlockHeight(0), false)
 	require.NoError(t, err)
 	require.Empty(t, withdrawalsByHeight)
 
-	withdrawalsByHeight, err = keeper.EligibleWithdrawals(ctx.WithBlockHeight(1))
+	withdrawalsByHeight, err = keeper.EligibleWithdrawals(ctx.WithBlockHeight(1), false)
 	require.NoError(t, err)
 	require.Empty(t, withdrawalsByHeight)
 
 	// make sure we have exactly one withdrawal below height 2
-	withdrawalsByHeight, err = keeper.EligibleWithdrawals(ctx.WithBlockHeight(2))
+	withdrawalsByHeight, err = keeper.EligibleWithdrawals(ctx.WithBlockHeight(2), false)
 	require.NoError(t, err)
 	require.Len(t, withdrawalsByHeight, 1)
 	matchesTestCase(withdrawalsByHeight[0], inputs[0])
 
 	// under height 50 we only have 2 withdrawals
-	withdrawalsByHeight, err = keeper.EligibleWithdrawals(ctx.WithBlockHeight(50))
+	withdrawalsByHeight, err = keeper.EligibleWithdrawals(ctx.WithBlockHeight(50), false)
 	require.NoError(t, err)
 	require.Len(t, withdrawalsByHeight, 2)
 	matchesTestCase(withdrawalsByHeight[0], inputs[0])
 	matchesTestCase(withdrawalsByHeight[1], inputs[1])
 
 	// under height 1000 we get all of them
-	withdrawalsByHeight, err = keeper.EligibleWithdrawals(ctx.WithBlockHeight(1000))
+	withdrawalsByHeight, err = keeper.EligibleWithdrawals(ctx.WithBlockHeight(1000), false)
 	require.NoError(t, err)
 	require.Len(t, withdrawalsByHeight, 4)
 	matchesTestCase(withdrawalsByHeight[0], inputs[0])
@@ -128,30 +127,9 @@ func TestKeeper_withdrawalsPersistence(t *testing.T) {
 
 	// under height 1000 we get the first 2 if we limit the output by 2
 	keeper.maxWithdrawalsPerBlock /= 2
-	withdrawalsByHeight, err = keeper.EligibleWithdrawals(ctx.WithBlockHeight(1000))
+	withdrawalsByHeight, err = keeper.EligibleWithdrawals(ctx.WithBlockHeight(1000), false)
 	require.NoError(t, err)
 	require.Len(t, withdrawalsByHeight, int(keeper.maxWithdrawalsPerBlock))
 	matchesTestCase(withdrawalsByHeight[0], inputs[0])
 	matchesTestCase(withdrawalsByHeight[1], inputs[1])
-}
-
-// getAllWithdrawals returns all withdrawals in the keeper DB.
-func getAllWithdrawals(ctx context.Context, k *Keeper) ([]*Withdrawal, error) {
-	iter, err := k.withdrawalTable.List(ctx, WithdrawalIdIndexKey{})
-	if err != nil {
-		return nil, errors.Wrap(err, "list withdrawals")
-	}
-	defer iter.Close()
-
-	var withdrawals []*Withdrawal
-
-	for iter.Next() {
-		val, err := iter.Value()
-		if err != nil {
-			return nil, errors.Wrap(err, "get withdrawal")
-		}
-		withdrawals = append(withdrawals, val)
-	}
-
-	return withdrawals, nil
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/omni-network/omni/octane/evmengine/types"
 
 	"github.com/ethereum/go-ethereum/beacon/engine"
-	"github.com/ethereum/go-ethereum/common"
+	etypes "github.com/ethereum/go-ethereum/core/types"
 
 	ormv1alpha1 "cosmossdk.io/api/cosmos/orm/v1alpha1"
 	"cosmossdk.io/core/store"
@@ -93,20 +93,10 @@ func NewKeeper(
 	}, nil
 }
 
-// verifyProcs ensures that all event processors have distinct names and addresses.
-// If it's not the case an error is returned.
-// This is needed to prevent duplicate event processing on name or address conflicts.
+// verifyProcs ensures that all event processors have distinct names.
 func verifyProcs(eventProcs []types.EvmEventProcessor) error {
 	names := make(map[string]bool)
-	addresses := make(map[common.Address]bool)
 	for _, proc := range eventProcs {
-		addrs, _ := proc.FilterParams()
-		for _, address := range addrs {
-			if addresses[address] {
-				return errors.New("duplicate event processors", "address", address)
-			}
-			addresses[address] = true
-		}
 		name := proc.Name()
 		if names[name] {
 			return errors.New("duplicate event processors", "name", name)
@@ -166,9 +156,13 @@ func (k *Keeper) parseAndVerifyProposedPayload(ctx context.Context, msg *types.M
 		return engine.ExecutableData{}, errors.Wrap(err, "unmarshal payload")
 	}
 
-	// Ensure no withdrawals are included in the payload.
-	if len(payload.Withdrawals) > 0 {
-		return engine.ExecutableData{}, errors.New("withdrawals not allowed in payload")
+	eligibleWithdrawals, err := k.EligibleWithdrawals(ctx, false)
+	if err != nil {
+		return engine.ExecutableData{}, errors.Wrap(err, "eligible withdrawals")
+	}
+
+	if !withdrawalsEqual(payload.Withdrawals, eligibleWithdrawals) {
+		return engine.ExecutableData{}, errors.New("mismatch with eligible withdrawals")
 	}
 
 	// Ensure no witness
@@ -182,7 +176,7 @@ func (k *Keeper) parseAndVerifyProposedPayload(ctx context.Context, msg *types.M
 	}
 
 	// Fetch the latest execution head from the local keeper DB.
-	head, err := k.getExecutionHead(ctx)
+	head, err := k.GetExecutionHead(ctx)
 	if err != nil {
 		return engine.ExecutableData{}, errors.Wrap(err, "latest execution block")
 	}
@@ -258,4 +252,21 @@ func (k *Keeper) getOptimisticPayload() (engine.PayloadID, uint64, time.Time) {
 	defer k.mutablePayload.Unlock()
 
 	return k.mutablePayload.ID, k.mutablePayload.Height, k.mutablePayload.UpdatedAt
+}
+
+func withdrawalsEqual(w1, w2 []*etypes.Withdrawal) bool {
+	if len(w1) != len(w2) {
+		return false
+	}
+
+	for i, w := range w1 {
+		if w.Index != w2[i].Index ||
+			w.Validator != w2[i].Validator ||
+			w.Address != w2[i].Address ||
+			w.Amount != w2[i].Amount {
+			return false
+		}
+	}
+
+	return true
 }

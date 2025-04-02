@@ -21,8 +21,8 @@ var (
 	backoffFunc   = expbackoff.New // backoffFunc aliased for testing.
 
 	// maxBlobsPerBlock is the maximum number of blobs per block.
-	// Copied from https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution-1.
-	maxBlobsPerBlock = 6
+	// Copied from https://github.com/ethereum/consensus-specs/blob/dev/specs/electra/beacon-chain.md#execution-1.
+	maxBlobsPerBlock = 9
 )
 
 // retryForever retries the given function forever until it returns true or an error.
